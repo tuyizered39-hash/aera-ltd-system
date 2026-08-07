@@ -1,0 +1,58 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "status": "Status",
+    "date": "Date",
+    "amount": "Amount",
+    "client": "Client",
+    "location": "Location",
+    "payment": "Payment",
+    "actions": "Actions",
+    "menu": "Menu",
+    "dashboard": "Dashboard",
+    "services": "Services",
+    "reports": "Reports",
+    "workers": "Workers",
+    "settings": "Settings",
+    "notifications": "Notifications"
+  },
+  "auth": {
+    "login": "Login",
+    "username": "Username",
+    "password": "Password",
+    "forgot_password": "Forgot Password?",
+    "invalid_credentials": "Invalid credentials",
+    "login_success": "Login successful",
+    "logout": "Logout"
+  },
+  "services": {
+    "it_maintenance": "IT Maintenance & Repair",
+    "electrical_installation": "Electrical Installation",
+    "construction": "Construction",
+    "generator_repair": "Generator Repair",
+    "office_stationary": "Office Stationary",
+    "decoration_sound": "Decoration & Sound System",
+    "new_service": "New Service",
+    "service_details": "Service Details",
+    "client_name": "Client Name",
+    "start_date": "Start Date",
+    "end_date": "End Date",
+    "payment_status": "Payment Status",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "partial": "Partial"
+  },
+  "errors": {
+    "server_error": "Server error occurred",
+    "not_found": "Resource not found",
+    "unauthorized": "Unauthorized access",
+    "validation": "Validation error",
+    "invalid_token": "Invalid token"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "common": {
+    "welcome": "Bienvenue",
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "status": "Statut",
+    "date": "Date",
+    "amount": "Montant",
+    "client": "Client",
+    "location": "Emplacement",
+    "payment": "Paiement",
+    "actions": "Actions",
+    "menu": "Menu",
+    "dashboard": "Tableau de bord",
+    "services": "Services",
+    "reports": "Rapports",
+    "workers": "Employés",
+    "settings": "Paramètres",
+    "notifications": "Notifications"
+  },
+  "auth": {
+    "login": "Connexion",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "forgot_password": "Mot de passe oublié ?",
+    "invalid_credentials": "Identifiants invalides",
+    "login_success": "Connexion réussie",
+    "logout": "Déconnexion"
+  }
+}

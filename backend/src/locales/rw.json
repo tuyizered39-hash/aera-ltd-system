@@ -1,0 +1,34 @@
+{
+  "common": {
+    "welcome": "Murakaza Neza",
+    "loading": "Birimo...",
+    "save": "Bika",
+    "cancel": "Hagarika",
+    "delete": "Siba",
+    "edit": "Hindura",
+    "search": "Shakisha",
+    "status": "Imiterere",
+    "date": "Itariki",
+    "amount": "Amafaranga",
+    "client": "Umukiriya",
+    "location": "Aho",
+    "payment": "Kwishyura",
+    "actions": "Ibikorwa",
+    "menu": "Urufunguzo",
+    "dashboard": "Urubuga rw'imbere",
+    "services": "Serivisi",
+    "reports": "Raporo",
+    "workers": "Abakozi",
+    "settings": "Ibyigenewe",
+    "notifications": "Imenyesha"
+  },
+  "auth": {
+    "login": "Kwinjira",
+    "username": "Izina Ukoresha",
+    "password": "Ijambo banga",
+    "forgot_password": "Wibagiwe ijambo ry'ibanga?",
+    "invalid_credentials": "Amakuru si yo",
+    "login_success": "Winjiye neza",
+    "logout": "Sohoka"
+  }
+}
