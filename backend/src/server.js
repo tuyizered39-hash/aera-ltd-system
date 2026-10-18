@@ -62,8 +62,7 @@ if (!process.env.VERCEL) {
 // ✅ CORS Configuration - Allow frontend URLs
 const corsOptions = {
   origin: [
-    'https://aera-ltd-system.vercel.app',
-    'https://aera-ltd.vercel.app',
+    'https://aera-ltd-system-1.onrender.com',
     'http://localhost:5173',
     'http://localhost:5174',
   ],
