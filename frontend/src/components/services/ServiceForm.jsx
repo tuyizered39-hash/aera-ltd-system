@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { serviceAPI } from '../../services/api';
-import LoadingSpinner from '../common/LoadingSpinner';
+import LoadingSpinner from '../common/LoadingSpinner.jsx';
+import ButtonSpinner from '../common/LoadingSpinner.jsx';
 import toast from 'react-hot-toast';
 
 const ServiceForm = ({ type, serviceType, serviceId = null }) => {
@@ -320,9 +321,16 @@ const ServiceForm = ({ type, serviceType, serviceId = null }) => {
           <button
             type="submit"
             disabled={submitting}
-            className="bg-blue-900 text-white px-6 py-2.5 rounded-lg hover:bg-blue-800 transition disabled:opacity-50"
+            className="flex items-center justify-center gap-2 bg-blue-900 text-white px-6 py-2.5 rounded-lg hover:bg-blue-800 transition disabled:opacity-60 disabled:cursor-not-allowed min-w-[140px]"
           >
-            {submitting ? t('common.loading') : isEdit ? t('common.save') : t('common.submit')}
+            {submitting ? (
+              <>
+                <ButtonSpinner size={16} color="white" />
+                <span>{t('common.loading')}</span>
+              </>
+            ) : (
+              <span>{isEdit ? t('common.save') : t('common.submit')}</span>
+            )}
           </button>
           <button
             type="button"

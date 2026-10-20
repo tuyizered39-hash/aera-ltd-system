@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FaEdit, FaArrowLeft, FaPrint } from 'react-icons/fa';
+import {
+  FaEdit, FaArrowLeft, FaPrint, FaFileWord, FaFilePdf,
+  FaFileInvoice, FaUser, FaCalendarAlt, FaMoneyBillWave,
+  FaReceipt, FaFileAlt, FaDownload
+} from 'react-icons/fa';
 import { useLanguage } from '../../context/LanguageContext';
 import { serviceAPI } from '../../services/api';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -14,9 +18,7 @@ const ServiceDetails = () => {
   const [service, setService] = useState(null);
 
   useEffect(() => {
-    if (id) {
-      fetchService();
-    }
+    if (id) fetchService();
   }, [id]);
 
   const fetchService = async () => {
@@ -33,13 +35,35 @@ const ServiceDetails = () => {
     }
   };
 
+  // ✅ Export handler
+  const handleExport = async (format) => {
+    try {
+      const response = format === 'docx'
+        ? await serviceAPI.exportServiceDOCX(id)
+        : await serviceAPI.exportServicePDF(id);
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `AERA-Service-${service.clientName}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`${format.toUpperCase()} downloaded`);
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error(`Failed to export ${format.toUpperCase()}`);
+    }
+  };
+
   const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-700';
     switch (status) {
-      case 'PAID': return 'bg-green-100 text-green-700';
-      case 'UNPAID': return 'bg-red-100 text-red-700';
-      case 'PARTIAL': return 'bg-yellow-100 text-yellow-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'PAID': return 'bg-green-100 text-green-700 border-green-300';
+      case 'UNPAID': return 'bg-red-100 text-red-700 border-red-300';
+      case 'PARTIAL': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+      default: return 'bg-gray-100 text-gray-700 border-gray-300';
     }
   };
 
@@ -55,16 +79,29 @@ const ServiceDetails = () => {
 
   const getServiceTypeLabel = (type) => {
     if (!type) return 'Unknown';
-    const key = `services.${type.toLowerCase()}`;
-    return t(key);
+    return t(`services.${type.toLowerCase()}`);
+  };
+
+  const calculateTotal = (products) => {
+    if (!products || products.length === 0) return 0;
+    return products.reduce(
+      (sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (parseInt(p.quantity) || 0),
+      0
+    );
   };
 
   if (loading) return <LoadingSpinner />;
   if (!service) return null;
 
+  const totalProducts = calculateTotal(service.products);
+  const invoiceNumber = `INV-${new Date(service.createdAt).getFullYear()}-${service.id.slice(-4).toUpperCase()}`;
+  const balanceDue = (service.amount || 0) - (service.amountPaid || 0);
+
   return (
-    <div>
-      {/* Header */}
+    <div className="max-w-5xl mx-auto pb-10">
+      {/* ============================================ */}
+      {/* ACTION BAR */}
+      {/* ============================================ */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <button
@@ -73,122 +110,329 @@ const ServiceDetails = () => {
           >
             <FaArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-gray-800">
-            {t('services.service_details')}
-          </h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Invoice Details</h1>
+            <p className="text-sm text-gray-500">
+              {getServiceTypeLabel(service.serviceType)}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* ✅ Edit Button - Fixed */}
+
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             to={`/services/${type}/${id}/edit`}
-            className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition"
+            className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm font-medium"
           >
-            <FaEdit /> {t('common.edit')}
+            <FaEdit /> Edit
           </Link>
+
+          <button
+            onClick={() => handleExport('docx')}
+            className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm font-medium"
+          >
+            <FaFileWord /> DOCX
+          </button>
+
+          <button
+            onClick={() => handleExport('pdf')}
+            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm font-medium"
+          >
+            <FaFilePdf /> PDF
+          </button>
+
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
+            className="flex items-center gap-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition text-sm font-medium"
           >
-            <FaPrint /> {t('common.print')}
+            <FaPrint /> Print
           </button>
         </div>
       </div>
 
-      {/* Details Card */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ============================================ */}
+      {/* INVOICE HEADER */}
+      {/* ============================================ */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+        <div className="bg-blue-900 text-white p-6">
+          <div className="flex justify-between items-start">
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Client Information</h3>
-              <div className="mt-3 space-y-2">
-                <p><span className="font-medium">Name:</span> {service.clientName || 'N/A'}</p>
-                {service.clientPhone && (
-                  <p><span className="font-medium">Phone:</span> {service.clientPhone}</p>
-                )}
-                {service.clientEmail && (
-                  <p><span className="font-medium">Email:</span> {service.clientEmail}</p>
-                )}
-                <p><span className="font-medium">Location:</span> {service.location || 'N/A'}</p>
-                <p><span className="font-medium">District:</span> {service.district || 'N/A'}</p>
-              </div>
+              <h2 className="text-3xl font-bold">
+                AERA <span className="text-yellow-400">LTD</span>
+              </h2>
+              <p className="text-blue-200 text-sm mt-1">
+                Gakenke District, Northern Province, Rwanda
+              </p>
+              
             </div>
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Service Details</h3>
-              <div className="mt-3 space-y-2">
-                <p><span className="font-medium">Type:</span> {getServiceTypeLabel(service.serviceType)}</p>
-                <p><span className="font-medium">Amount:</span> RWF {service.amount?.toLocaleString() || 0}</p>
-                <p><span className="font-medium">Amount Paid:</span> RWF {(service.amountPaid || 0).toLocaleString()}</p>
-                <p><span className="font-medium">Payment Status:</span> 
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getStatusColor(service.paymentStatus)}`}>
-                    {t(`common.${service.paymentStatus?.toLowerCase() || 'unknown'}`)}
-                  </span>
-                </p>
-                <p><span className="font-medium">Service Status:</span>
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getServiceStatusColor(service.status)}`}>
-                    {t(`common.${service.status?.toLowerCase() || 'unknown'}`)}
-                  </span>
-                </p>
-              </div>
+            <div className="text-right">
+              <FaFileInvoice className="text-4xl text-yellow-400 mb-2 ml-auto" />
+              <p className="text-sm text-blue-200 uppercase tracking-wider">Invoice</p>
+              <p className="text-lg font-bold">{invoiceNumber}</p>
+
+              {/* Payment Status Badge */}
+              <span
+                className={`inline-block mt-3 px-3 py-1 text-xs font-bold rounded-full border-2 ${
+                  service.paymentStatus === 'PAID'
+                    ? 'bg-green-500 text-white border-green-300'
+                    : service.paymentStatus === 'PARTIAL'
+                    ? 'bg-yellow-500 text-white border-yellow-300'
+                    : 'bg-red-500 text-white border-red-300'
+                }`}
+              >
+                {service.paymentStatus || 'UNPAID'}
+              </span>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t border-gray-200">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Dates</h3>
-              <div className="mt-3 space-y-2">
-                <p><span className="font-medium">Start Date:</span> {service.startDate ? new Date(service.startDate).toLocaleDateString() : 'N/A'}</p>
-                {service.endDate && (
-                  <p><span className="font-medium">End Date:</span> {new Date(service.endDate).toLocaleDateString()}</p>
-                )}
-                <p><span className="font-medium">Created:</span> {service.createdAt ? new Date(service.createdAt).toLocaleString() : 'N/A'}</p>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Additional Info</h3>
-              <div className="mt-3 space-y-2">
-                {service.paymentMode && (
-                  <p><span className="font-medium">Payment Mode:</span> {service.paymentMode}</p>
-                )}
-                {service.tentQuantity > 0 && (
-                  <p><span className="font-medium">Tent Quantity:</span> {service.tentQuantity}</p>
-                )}
-                {service.decorationItems?.length > 0 && (
-                  <p><span className="font-medium">Decoration Items:</span> {service.decorationItems.length} items</p>
-                )}
-                {service.description && (
-                  <p><span className="font-medium">Description:</span> {service.description}</p>
-                )}
-                {service.notes && (
-                  <p><span className="font-medium">Notes:</span> {service.notes}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {service.decorationItems?.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-500 mb-3">Decoration Items</h3>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left text-sm text-gray-500">
-                      <th className="pb-2">Item</th>
-                      <th className="pb-2">Quantity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {service.decorationItems.map((item, index) => (
-                      <tr key={index} className="border-t border-gray-200">
-                        <td className="py-2">{item.name}</td>
-                        <td className="py-2">{item.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
+      </div>
+
+      {/* ============================================ */}
+      {/* CLIENT + INVOICE META */}
+      {/* ============================================ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Billed To */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FaUser className="text-blue-900" />
+            <h3 className="text-lg font-semibold text-gray-800">Billed To</h3>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xl font-bold text-gray-800">
+              {service.clientName || 'N/A'}
+            </p>
+            <p className="text-sm text-gray-500">
+              Service Type: <span className="font-medium text-gray-700">{getServiceTypeLabel(service.serviceType)}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Invoice Details */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FaCalendarAlt className="text-blue-900" />
+            <h3 className="text-lg font-semibold text-gray-800">Invoice Details</h3>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Invoice Date:</span>
+              <span className="font-semibold text-gray-800">
+                {service.startDate ? new Date(service.startDate).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+            {service.endDate && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Due Date:</span>
+                <span className="font-semibold text-gray-800">
+                  {new Date(service.endDate).toLocaleDateString()}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Created:</span>
+              <span className="font-semibold text-gray-800">
+                {service.createdAt ? new Date(service.createdAt).toLocaleString() : 'N/A'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+              <span className="text-gray-500">Service Status:</span>
+              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getServiceStatusColor(service.status)}`}>
+                {service.status || 'ONGOING'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================ */}
+      {/* PRODUCTS TABLE — INVOICE STYLE */}
+      {/* ============================================ */}
+      {service.products && service.products.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+          <div className="flex items-center gap-2 p-4 border-b border-gray-200 bg-gray-50">
+            <FaReceipt className="text-blue-900" />
+            <h3 className="text-lg font-semibold text-gray-800">
+              Products / Services
+            </h3>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-blue-900 text-white">
+                <tr className="text-left text-sm font-semibold">
+                  <th className="px-4 py-3 w-12 text-center border-r border-blue-800">#</th>
+                  <th className="px-4 py-3 border-r border-blue-800">Product / Service Name</th>
+                  <th className="px-4 py-3 w-40 text-right border-r border-blue-800">Unit Price (RWF)</th>
+                  <th className="px-4 py-3 w-24 text-center border-r border-blue-800">Qty</th>
+                  <th className="px-4 py-3 w-44 text-right">Total (RWF)</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {service.products.map((p, idx) => {
+                  const lineTotal = (parseFloat(p.unitPrice) || 0) * (parseInt(p.quantity) || 0);
+                  const isEven = idx % 2 === 0;
+                  return (
+                    <tr
+                      key={idx}
+                      className={`border-t border-gray-200 ${isEven ? 'bg-white' : 'bg-gray-50'}`}
+                    >
+                      <td className="px-4 py-3 text-center text-sm font-semibold text-gray-600 border-r border-gray-200">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3 text-gray-800 border-r border-gray-200">
+                        {p.name}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 border-r border-gray-200">
+                        {(parseFloat(p.unitPrice) || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700 border-r border-gray-200">
+                        {p.quantity}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900">
+                        {lineTotal.toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ============================================ */}
+          {/* TOTALS SUMMARY */}
+          {/* ============================================ */}
+          <div className="border-t-2 border-blue-900 bg-blue-50 p-6">
+            <div className="flex flex-col items-end space-y-2">
+              <div className="flex justify-between w-full max-w-md">
+                <span className="text-sm text-gray-600">Subtotal:</span>
+                <span className="text-sm font-semibold text-gray-800">
+                  RWF {totalProducts.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex justify-between w-full max-w-md pt-2 border-t border-blue-200">
+                <span className="text-base font-bold text-gray-800">GRAND TOTAL:</span>
+                <span className="text-xl font-extrabold text-blue-900">
+                  RWF {totalProducts.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex justify-between w-full max-w-md pt-2 border-t border-blue-200">
+                <span className="text-sm text-gray-600">Amount Paid:</span>
+                <span className="text-sm font-semibold text-green-700">
+                  RWF {(service.amountPaid || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex justify-between w-full max-w-md pt-2 border-t border-blue-300">
+                <span className="text-base font-bold text-gray-800">BALANCE DUE:</span>
+                <span className={`text-lg font-extrabold ${balanceDue > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  RWF {balanceDue.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/* PAYMENT INFORMATION */}
+      {/* ============================================ */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <FaMoneyBillWave className="text-blue-900" />
+          <h3 className="text-lg font-semibold text-gray-800">Payment Information</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Payment Status</p>
+            <span className={`inline-block px-3 py-1.5 text-sm font-semibold rounded-full border ${getStatusColor(service.paymentStatus)}`}>
+              {service.paymentStatus || 'UNPAID'}
+            </span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Payment Mode</p>
+            <p className="text-base font-semibold text-gray-800">
+              {service.paymentMode || 'CASH'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Amount Paid</p>
+            <p className="text-base font-semibold text-green-700">
+              RWF {(service.amountPaid || 0).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================ */}
+      {/* ADDITIONAL INFO */}
+      {/* ============================================ */}
+      {(service.description || service.notes || service.tentQuantity > 0) && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4"> Additional Info</h3>
+          <div className="space-y-3 text-sm">
+            {service.tentQuantity > 0 && (
+              <div className="flex justify-between border-b border-gray-100 pb-2">
+                <span className="text-gray-500">Tent Quantity:</span>
+                <span className="font-semibold text-gray-800">{service.tentQuantity}</span>
+              </div>
+            )}
+            {service.description && (
+              <div>
+                <p className="text-gray-500 mb-1">Description:</p>
+                <p className="text-gray-800">{service.description}</p>
+              </div>
+            )}
+            {service.notes && (
+              <div>
+                <p className="text-gray-500 mb-1">Notes:</p>
+                <p className="text-gray-800 italic">{service.notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/* ATTACHMENT */}
+      {/* ============================================ */}
+      {service.attachmentUrl && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FaFileAlt className="text-blue-900" />
+            <h3 className="text-lg font-semibold text-gray-800">Attachment</h3>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-4 flex items-center gap-4">
+            <FaFileAlt className="text-blue-600 text-2xl" />
+            <div className="flex-1">
+              <p className="font-medium text-gray-800">{service.attachmentName}</p>
+              <p className="text-xs text-gray-500">
+                {service.attachmentType} • {((service.attachmentSize || 0) / 1024).toFixed(1)} KB
+              </p>
+            </div>
+            <a
+              href={`http://127.0.0.1:5000${service.attachmentUrl}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className="flex items-center gap-2 bg-blue-900 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm"
+            >
+              <FaDownload /> Download
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/* FOOTER NOTE */}
+      {/* ============================================ */}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+        <p className="text-xs text-gray-500">
+          Thank you for your business! • This is a computer-generated invoice.
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          AERA LTD • Gakenke District • Rwanda
+        </p>
       </div>
     </div>
   );

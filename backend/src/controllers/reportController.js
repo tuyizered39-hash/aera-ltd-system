@@ -7,9 +7,22 @@ const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 
+// ============================================
+// BRAND COLORS
+// ============================================
+const COLORS = {
+  blue: '#0E5CA8',
+  yellow: '#F5B400',
+  lightBlue: '#F2F6FC',
+  green: '#16A34A',
+  red: '#DC2626',
+  gray: '#666666',
+  darkGray: '#333333',
+};
+
 const reportController = {
   // ============================================
-  // ✅ SEND DAILY REPORT (Worker to Admin)
+  // ✅ SEND DAILY REPORT (Worker → Admin)
   // ============================================
   async sendDailyReport(req, res, next) {
     try {
@@ -17,28 +30,28 @@ const reportController = {
       const { serviceType, startDate, endDate, notes } = req.body;
 
       console.log('Sending daily report from user:', userId);
-      console.log('Request body:', req.body);
 
-      // Fetch services for the worker
-      const where = {
-        createdById: userId,
-        createdAt: {
-          gte: startDate ? new Date(startDate) : dayjs().startOf('day').toDate(),
-          lte: endDate ? new Date(endDate) : dayjs().endOf('day').toDate(),
-        },
-      };
+      const where = { createdById: userId };
+
+   if (startDate) {
+    where.createdAt = {
+      gte: dayjs(startDate).startOf('day').toDate(),
+     lte: dayjs(endDate || startDate).endOf('day').toDate(),
+   };
+  } else {
+  where.createdAt = {
+    gte: dayjs().startOf('day').toDate(),
+    lte: dayjs().endOf('day').toDate(),
+  };
+}
+
 
       if (serviceType) where.serviceType = serviceType;
 
       const services = await prisma.service.findMany({
         where,
         include: {
-          createdBy: {
-            select: {
-              fullName: true,
-              username: true,
-            },
-          },
+          createdBy: { select: { fullName: true, username: true } },
           payments: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -46,12 +59,18 @@ const reportController = {
 
       console.log('Found services:', services.length);
 
-      // Calculate totals
-      const totalAmount = services.reduce((sum, s) => sum + s.amount, 0);
-      const totalPaid = services.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
+      // ✅ FIX: Parse amounts as numbers
+      const totalAmount = services.reduce(
+        (sum, s) => sum + (parseFloat(s.amount) || 0),
+        0
+      );
+      const totalPaid = services.reduce(
+        (sum, s) => sum + (parseFloat(s.amountPaid) || 0),
+        0
+      );
       const totalUnpaid = totalAmount - totalPaid;
+      const totalClients = new Set(services.map(s => s.clientName)).size;
 
-      // Create report data
       const reportData = {
         services,
         summary: {
@@ -59,7 +78,7 @@ const reportController = {
           totalAmount,
           totalPaid,
           totalUnpaid,
-          totalClients: new Set(services.map(s => s.clientName)).size,
+          totalClients,
         },
         worker: {
           name: req.user.fullName,
@@ -71,7 +90,6 @@ const reportController = {
         endDate: endDate || dayjs().endOf('day').toDate(),
       };
 
-      // Save report
       const report = await prisma.report.create({
         data: {
           userId: req.user.id,
@@ -86,30 +104,32 @@ const reportController = {
 
       console.log('Report saved:', report.id);
 
-      // Find admin users
+      // Find admins
       const admins = await prisma.user.findMany({
         where: { role: 'ADMIN' },
         select: { id: true, fullName: true },
       });
 
-      console.log('Found admins:', admins.length);
-
-      // Create notifications for all admins
+      // Create notifications WITH full amount data
       const notifications = [];
       for (const admin of admins) {
         const notification = await prisma.notification.create({
           data: {
             userId: admin.id,
             title: 'Daily Report Received',
-            message: `${req.user.fullName} has submitted a daily report with ${services.length} services. Total: RWF ${totalAmount.toLocaleString()}`,
+            message: `${req.user.fullName} submitted ${services.length} services. Total: RWF ${totalAmount.toLocaleString()}`,
             type: 'REPORT',
             data: {
               reportId: report.id,
               workerId: req.user.id,
               workerName: req.user.fullName,
               totalServices: services.length,
-              totalAmount: totalAmount,
+              totalAmount: totalAmount,       // ✅ Number
+              totalPaid: totalPaid,           // ✅ Added
+              totalUnpaid: totalUnpaid,       // ✅ Added
+              totalClients: totalClients,     // ✅ Added
               reportDate: new Date(),
+              notes: notes || '',
             },
             isRead: false,
           },
@@ -143,23 +163,14 @@ const reportController = {
       const userId = req.user.id;
 
       const notifications = await prisma.notification.findMany({
-        where: {
-          userId,
-          type: 'REPORT',
-        },
+        where: { userId, type: 'REPORT' },
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: {
-          user: {
-            select: {
-              fullName: true,
-              username: true,
-            },
-          },
+          user: { select: { fullName: true, username: true } },
         },
       });
 
-      // Get report details for each notification
       const notificationsWithDetails = await Promise.all(
         notifications.map(async (notification) => {
           const reportId = notification.data?.reportId;
@@ -168,26 +179,15 @@ const reportController = {
             report = await prisma.report.findUnique({
               where: { id: reportId },
               include: {
-                user: {
-                  select: {
-                    fullName: true,
-                    username: true,
-                  },
-                },
+                user: { select: { fullName: true, username: true } },
               },
             });
           }
-          return {
-            ...notification,
-            report,
-          };
+          return { ...notification, report };
         })
       );
 
-      res.json({
-        success: true,
-        data: notificationsWithDetails,
-      });
+      res.json({ success: true, data: notificationsWithDetails });
     } catch (error) {
       console.error('Get report notifications error:', error);
       next(error);
@@ -195,7 +195,7 @@ const reportController = {
   },
 
   // ============================================
-  // ✅ MARK REPORT NOTIFICATION AS READ (Admin)
+  // ✅ MARK REPORT NOTIFICATION AS READ
   // ============================================
   async markReportNotificationRead(req, res, next) {
     try {
@@ -203,16 +203,10 @@ const reportController = {
       const userId = req.user.id;
 
       const notification = await prisma.notification.findFirst({
-        where: {
-          id,
-          userId,
-          type: 'REPORT',
-        },
+        where: { id, userId, type: 'REPORT' },
       });
 
-      if (!notification) {
-        throw new AppError('Notification not found', 404);
-      }
+      if (!notification) throw new AppError('Notification not found', 404);
 
       const updated = await prisma.notification.update({
         where: { id },
@@ -230,18 +224,14 @@ const reportController = {
   },
 
   // ============================================
-  // ✅ MARK ALL REPORT NOTIFICATIONS AS READ (Admin)
+  // ✅ MARK ALL REPORT NOTIFICATIONS AS READ
   // ============================================
   async markAllReportNotificationsRead(req, res, next) {
     try {
       const userId = req.user.id;
 
       await prisma.notification.updateMany({
-        where: {
-          userId,
-          type: 'REPORT',
-          isRead: false,
-        },
+        where: { userId, type: 'REPORT', isRead: false },
         data: { isRead: true },
       });
 
@@ -255,48 +245,55 @@ const reportController = {
   },
 
   // ============================================
-  // GENERATE REPORT
+  // GENERATE REPORT (PDF / Excel)
   // ============================================
   async generateReport(req, res, next) {
     try {
       const { type, serviceType, startDate, endDate, format = 'pdf' } = req.body;
       const userId = req.user.id;
 
-      // Build query filters
       const where = {};
       if (serviceType) where.serviceType = serviceType;
       if (startDate) where.createdAt = { gte: new Date(startDate) };
       if (endDate) where.createdAt = { ...where.createdAt, lte: new Date(endDate) };
 
-      // Fetch data
       const services = await prisma.service.findMany({
         where,
         include: {
-          createdBy: {
-            select: {
-              fullName: true,
-              username: true,
-            },
-          },
+          createdBy: { select: { fullName: true, username: true } },
           payments: true,
         },
         orderBy: { createdAt: 'desc' },
       });
 
-      // Calculate totals
-      const totalAmount = services.reduce((sum, s) => sum + s.amount, 0);
-      const totalPaid = services.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
+      // ✅ FIX: Parse amounts
+      const totalAmount = services.reduce(
+        (sum, s) => sum + (parseFloat(s.amount) || 0),
+        0
+      );
+      const totalPaid = services.reduce(
+        (sum, s) => sum + (parseFloat(s.amountPaid) || 0),
+        0
+      );
       const totalUnpaid = totalAmount - totalPaid;
 
-      // Generate file based on format
       let fileUrl = null;
       if (format === 'pdf') {
-        fileUrl = await generatePDF(services, { totalAmount, totalPaid, totalUnpaid });
+        fileUrl = await generatePDF(services, { totalAmount, totalPaid, totalUnpaid }, {
+          type,
+          serviceType,
+          startDate,
+          endDate,
+        });
       } else if (format === 'excel') {
-        fileUrl = await generateExcel(services, { totalAmount, totalPaid, totalUnpaid });
+        fileUrl = await generateExcel(services, { totalAmount, totalPaid, totalUnpaid }, {
+          type,
+          serviceType,
+          startDate,
+          endDate,
+        });
       }
 
-      // Save report to database
       const report = await prisma.report.create({
         data: {
           userId,
@@ -326,7 +323,7 @@ const reportController = {
         },
       });
     } catch (error) {
-      console.error('Generate report error:', error);
+      console.error(' Generate report error:', error);
       next(error);
     }
   },
@@ -360,7 +357,7 @@ const reportController = {
         },
       });
     } catch (error) {
-      console.error('Get reports error:', error);
+      console.error(' Get reports error:', error);
       next(error);
     }
   },
@@ -372,24 +369,16 @@ const reportController = {
     try {
       const { id } = req.params;
 
-      const report = await prisma.report.findUnique({
-        where: { id },
-      });
+      const report = await prisma.report.findUnique({ where: { id } });
 
-      if (!report) {
-        throw new AppError('Report not found', 404);
-      }
+      if (!report) throw new AppError('Report not found', 404);
 
       if (report.userId !== req.user.id && req.user.role !== 'ADMIN') {
         throw new AppError('You do not have permission to view this report', 403);
       }
 
-      res.json({
-        success: true,
-        data: report,
-      });
+      res.json({ success: true, data: report });
     } catch (error) {
-      console.error('Get report by ID error:', error);
       next(error);
     }
   },
@@ -401,30 +390,21 @@ const reportController = {
     try {
       const { id } = req.params;
 
-      const report = await prisma.report.findUnique({
-        where: { id },
-      });
+      const report = await prisma.report.findUnique({ where: { id } });
 
-      if (!report) {
-        throw new AppError('Report not found', 404);
-      }
+      if (!report) throw new AppError('Report not found', 404);
 
       if (report.userId !== req.user.id && req.user.role !== 'ADMIN') {
         throw new AppError('You do not have permission to download this report', 403);
       }
 
-      if (!report.fileUrl) {
-        throw new AppError('No file attached to this report', 404);
-      }
+      if (!report.fileUrl) throw new AppError('No file attached to this report', 404);
 
       const filePath = path.join(__dirname, '../../', report.fileUrl);
-      if (!fs.existsSync(filePath)) {
-        throw new AppError('File not found on server', 404);
-      }
+      if (!fs.existsSync(filePath)) throw new AppError('File not found on server', 404);
 
       res.download(filePath);
     } catch (error) {
-      console.error('Download report error:', error);
       next(error);
     }
   },
@@ -436,13 +416,9 @@ const reportController = {
     try {
       const { id } = req.params;
 
-      const report = await prisma.report.findUnique({
-        where: { id },
-      });
+      const report = await prisma.report.findUnique({ where: { id } });
 
-      if (!report) {
-        throw new AppError('Report not found', 404);
-      }
+      if (!report) throw new AppError('Report not found', 404);
 
       if (report.userId !== req.user.id && req.user.role !== 'ADMIN') {
         throw new AppError('You do not have permission to delete this report', 403);
@@ -450,23 +426,15 @@ const reportController = {
 
       if (report.fileUrl) {
         const filePath = path.join(__dirname, '../../', report.fileUrl);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
 
-      await prisma.report.delete({
-        where: { id },
-      });
+      await prisma.report.delete({ where: { id } });
 
       logger.info(`Report ${id} deleted by ${req.user.username}`);
 
-      res.json({
-        success: true,
-        message: 'Report deleted successfully',
-      });
+      res.json({ success: true, message: 'Report deleted successfully' });
     } catch (error) {
-      console.error('Delete report error:', error);
       next(error);
     }
   },
@@ -481,12 +449,7 @@ const reportController = {
       const [reports, total] = await Promise.all([
         prisma.report.findMany({
           include: {
-            user: {
-              select: {
-                fullName: true,
-                username: true,
-              },
-            },
+            user: { select: { fullName: true, username: true } },
           },
           orderBy: { generatedAt: 'desc' },
           skip: (page - 1) * limit,
@@ -506,115 +469,319 @@ const reportController = {
         },
       });
     } catch (error) {
-      console.error('Get all reports error:', error);
       next(error);
     }
   },
 };
 
 // ============================================
-// HELPER FUNCTIONS
+// PDF GENERATOR — MODERN INVOICE STYLE
 // ============================================
-
-// PDF Generation
-async function generatePDF(services, summary) {
-  const doc = new PDFDocument();
+async function generatePDF(services, summary, filters = {}) {
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
   const fileName = `report-${Date.now()}.pdf`;
   const filePath = path.join(__dirname, '../../uploads/reports/', fileName);
 
   const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   const stream = fs.createWriteStream(filePath);
   doc.pipe(stream);
 
-  doc.fontSize(20).text('AERA LTD - Service Report', { align: 'center' });
-  doc.moveDown();
-  doc.fontSize(12).text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
-  doc.moveDown();
+  // ============================================
+  // HEADER BANNER
+  // ============================================
+  doc.rect(0, 0, doc.page.width, 110).fill(COLORS.blue);
 
-  doc.fontSize(16).text('Summary', { underline: true });
-  doc.fontSize(12);
-  doc.text(`Total Services: ${services.length}`);
-  doc.text(`Total Amount: RWF ${summary.totalAmount.toFixed(2)}`);
-  doc.text(`Total Paid: RWF ${summary.totalPaid.toFixed(2)}`);
-  doc.text(`Total Unpaid: RWF ${summary.totalUnpaid.toFixed(2)}`);
-  doc.moveDown();
+  doc.font('Helvetica-Bold').fontSize(30).fillColor('#FFFFFF')
+    .text('AERA', 40, 30, { continued: true });
+  doc.fillColor(COLORS.yellow).text(' LTD');
 
-  doc.fontSize(14).text('Service Details', { underline: true });
-  doc.moveDown();
+  doc.font('Helvetica').fontSize(10).fillColor('#CCE0FF')
+    .text('Gakenke District, Northern Province, Rwanda', 40, 70);
 
-  const tableTop = doc.y;
-  const tableLeft = 50;
-  const colWidths = [80, 100, 80, 80, 80];
+  doc.font('Helvetica-Bold').fontSize(12).fillColor('#FFFFFF')
+    .text('SERVICE REPORT', 400, 35, { width: 160, align: 'right' });
+  doc.font('Helvetica').fontSize(10).fillColor('#CCE0FF')
+    .text(`Generated: ${new Date().toLocaleDateString()}`, 400, 55, { width: 160, align: 'right' });
+  doc.text(`Time: ${new Date().toLocaleTimeString()}`, 400, 70, { width: 160, align: 'right' });
 
-  doc.fontSize(10);
-  doc.text('Client', tableLeft, tableTop);
-  doc.text('Type', tableLeft + colWidths[0], tableTop);
-  doc.text('Amount', tableLeft + colWidths[0] + colWidths[1], tableTop);
-  doc.text('Status', tableLeft + colWidths[0] + colWidths[1] + colWidths[2], tableTop);
-  doc.text('Date', tableLeft + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], tableTop);
+  // ============================================
+  // SUMMARY SECTION
+  // ============================================
+  let y = 140;
 
-  doc.moveDown();
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.blue)
+    .text('REPORT SUMMARY', 40, y);
+  doc.moveTo(40, y + 20).lineTo(555, y + 20).stroke(COLORS.blue);
 
-  let rowY = doc.y;
-  services.slice(0, 30).forEach((service) => {
-    doc.text(service.clientName, tableLeft, rowY);
-    doc.text(service.serviceType.replace('_', ' '), tableLeft + colWidths[0], rowY);
-    doc.text(`RWF ${service.amount.toFixed(2)}`, tableLeft + colWidths[0] + colWidths[1], rowY);
-    doc.text(service.paymentStatus, tableLeft + colWidths[0] + colWidths[1] + colWidths[2], rowY);
-    doc.text(new Date(service.createdAt).toLocaleDateString(), tableLeft + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], rowY);
-    rowY += 20;
+  y += 35;
+
+  // Summary cards
+  const cardWidth = 125;
+  const cardGap = 5;
+  const cards = [
+    { label: 'Total Services', value: services.length, color: COLORS.blue },
+    { label: 'Total Amount', value: `RWF ${summary.totalAmount.toLocaleString()}`, color: COLORS.blue },
+    { label: 'Total Paid', value: `RWF ${summary.totalPaid.toLocaleString()}`, color: COLORS.green },
+    { label: 'Unpaid', value: `RWF ${summary.totalUnpaid.toLocaleString()}`, color: COLORS.red },
+  ];
+
+  cards.forEach((card, idx) => {
+    const x = 40 + idx * (cardWidth + cardGap);
+    doc.rect(x, y, cardWidth, 50).fill(COLORS.lightBlue);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.gray)
+      .text(card.label, x + 8, y + 8, { width: cardWidth - 16 });
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(card.color)
+      .text(String(card.value), x + 8, y + 24, { width: cardWidth - 16 });
   });
 
-  if (services.length > 30) {
-    doc.text(`... and ${services.length - 30} more services`, tableLeft, rowY);
+  y += 75;
+
+  // ============================================
+  // SERVICES TABLE
+  // ============================================
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.blue)
+    .text('SERVICE DETAILS', 40, y);
+  doc.moveTo(40, y + 20).lineTo(555, y + 20).stroke(COLORS.blue);
+
+  y += 30;
+
+  // Table header
+  doc.rect(40, y, 515, 26).fill(COLORS.blue);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#FFFFFF');
+  doc.text('#', 50, y + 8, { width: 20 });
+  doc.text('Client', 75, y + 8, { width: 130 });
+  doc.text('Service Type', 210, y + 8, { width: 100 });
+  doc.text('Amount', 315, y + 8, { width: 75, align: 'right' });
+  doc.text('Paid', 395, y + 8, { width: 75, align: 'right' });
+  doc.text('Status', 475, y + 8, { width: 70, align: 'center' });
+
+  y += 26;
+
+  // Table rows
+  services.slice(0, 40).forEach((service, idx) => {
+    if (y > 730) {
+      doc.addPage();
+      y = 40;
+    }
+
+    if (idx % 2 === 1) {
+      doc.rect(40, y, 515, 22).fill(COLORS.lightBlue);
+    }
+
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.darkGray)
+      .text(String(idx + 1), 50, y + 6, { width: 20 });
+    doc.font('Helvetica').fontSize(8).fillColor('#000000')
+      .text(service.clientName || '-', 75, y + 6, { width: 130 });
+    doc.text((service.serviceType || '').replace(/_/g, ' '), 210, y + 6, { width: 100 });
+    doc.font('Helvetica-Bold')
+      .text(`RWF ${(parseFloat(service.amount) || 0).toLocaleString()}`, 315, y + 6, { width: 75, align: 'right' });
+    doc.text(`RWF ${(parseFloat(service.amountPaid) || 0).toLocaleString()}`, 395, y + 6, { width: 75, align: 'right' });
+    doc.font('Helvetica')
+      .text(service.paymentStatus || 'UNPAID', 475, y + 6, { width: 70, align: 'center' });
+
+    y += 22;
+  });
+
+  if (services.length > 40) {
+    doc.font('Helvetica-Oblique').fontSize(8).fillColor(COLORS.gray)
+      .text(`... and ${services.length - 40} more services`, 40, y + 6);
   }
+
+  // ============================================
+  // GRAND TOTAL BLOCK
+  // ============================================
+  y += 30;
+
+  doc.rect(340, y, 215, 40).fill(COLORS.blue);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#FFFFFF')
+    .text('GRAND TOTAL:', 350, y + 12, { width: 100, align: 'right' });
+  doc.fontSize(14).fillColor(COLORS.yellow)
+    .text(`RWF ${summary.totalAmount.toLocaleString()}`, 450, y + 10, { width: 95, align: 'right' });
+
+  // ============================================
+  // FOOTER
+  // ============================================
+  y += 60;
+  doc.font('Helvetica-Oblique').fontSize(9).fillColor(COLORS.gray)
+    .text('This is a computer-generated report from AERA LTD', 40, y, { width: 515, align: 'center' });
+  doc.text('Gakenke District • Northern Province • Rwanda', 40, y + 15, { width: 515, align: 'center' });
 
   doc.end();
 
   return `/uploads/reports/${fileName}`;
 }
 
-// Excel Generation
-async function generateExcel(services, summary) {
+// ============================================
+// EXCEL GENERATOR — MODERN STYLE
+// ============================================
+async function generateExcel(services, summary, filters = {}) {
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Service Report');
+  workbook.creator = 'AERA LTD';
+  workbook.created = new Date();
 
-  worksheet.addRow(['AERA LTD - Service Report']);
-  worksheet.addRow([`Generated: ${new Date().toLocaleString()}`]);
+  const worksheet = workbook.addWorksheet('Service Report', {
+    views: [{ state: 'frozen', ySplit: 4 }],
+  });
+
+  // ============================================
+  // HEADER
+  // ============================================
+  worksheet.mergeCells('A1:G1');
+  const titleCell = worksheet.getCell('A1');
+  titleCell.value = 'AERA LTD - Service Report';
+  titleCell.font = { bold: true, size: 18, color: { argb: 'FF0E5CA8' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  worksheet.getRow(1).height = 30;
+
+  worksheet.mergeCells('A2:G2');
+  const subtitleCell = worksheet.getCell('A2');
+  subtitleCell.value = `Generated: ${new Date().toLocaleString()} • Gakenke District, Rwanda`;
+  subtitleCell.font = { italic: true, size: 10, color: { argb: 'FF666666' } };
+  subtitleCell.alignment = { horizontal: 'center' };
+
+  // ============================================
+  // SUMMARY
+  // ============================================
   worksheet.addRow([]);
-  worksheet.addRow(['Summary']);
-  worksheet.addRow([`Total Services: ${services.length}`]);
-  worksheet.addRow([`Total Amount: RWF ${summary.totalAmount.toFixed(2)}`]);
-  worksheet.addRow([`Total Paid: RWF ${summary.totalPaid.toFixed(2)}`]);
-  worksheet.addRow([`Total Unpaid: RWF ${summary.totalUnpaid.toFixed(2)}`]);
+  worksheet.addRow([' SUMMARY']);
+  worksheet.getRow(4).font = { bold: true, size: 12, color: { argb: 'FF0E5CA8' } };
+
+  worksheet.addRow(['Total Services:', services.length]);
+  worksheet.addRow(['Total Amount:', summary.totalAmount]);
+  worksheet.addRow(['Total Paid:', summary.totalPaid]);
+  worksheet.addRow(['Total Unpaid:', summary.totalUnpaid]);
+
+  // Format summary rows
+  [5, 6, 7, 8].forEach(rowNum => {
+    worksheet.getRow(rowNum).getCell(1).font = { bold: true };
+  });
+
+  // Currency format for summary
+  ['B6', 'B7', 'B8'].forEach(cell => {
+    worksheet.getCell(cell).numFmt = '"RWF "#,##0';
+    worksheet.getCell(cell).font = { bold: true };
+  });
+
   worksheet.addRow([]);
 
-  const headers = ['Client', 'Service Type', 'Amount', 'Payment Status', 'Location', 'Date', 'Created By'];
-  worksheet.addRow(headers);
+  // ============================================
+  // TABLE
+  // ============================================
+  const headerRow = worksheet.addRow([
+    '#',
+    'Client',
+    'Service Type',
+    'Amount (RWF)',
+    'Paid (RWF)',
+    'Status',
+    'Date',
+  ]);
 
-  services.forEach((service) => {
-    worksheet.addRow([
-      service.clientName,
-      service.serviceType.replace('_', ' '),
-      service.amount,
-      service.paymentStatus,
-      service.district,
+  // Header styling
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0E5CA8' },
+    };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  });
+  headerRow.height = 25;
+
+  // Data rows
+  services.forEach((service, idx) => {
+    const row = worksheet.addRow([
+      idx + 1,
+      service.clientName || '-',
+      (service.serviceType || '').replace(/_/g, ' '),
+      parseFloat(service.amount) || 0,
+      parseFloat(service.amountPaid) || 0,
+      service.paymentStatus || 'UNPAID',
       new Date(service.createdAt).toLocaleDateString(),
-      service.createdBy?.fullName || 'N/A',
     ]);
+
+    // Alternating background
+    if (idx % 2 === 1) {
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF2F6FC' },
+        };
+      });
+    }
+
+    // Currency format
+    row.getCell(4).numFmt = '"RWF "#,##0';
+    row.getCell(5).numFmt = '"RWF "#,##0';
+
+    // Status colors
+    const statusCell = row.getCell(6);
+    if (service.paymentStatus === 'PAID') {
+      statusCell.font = { bold: true, color: { argb: 'FF16A34A' } };
+    } else if (service.paymentStatus === 'PARTIAL') {
+      statusCell.font = { bold: true, color: { argb: 'FFCA8A04' } };
+    } else {
+      statusCell.font = { bold: true, color: { argb: 'FFDC2626' } };
+    }
+
+    // Borders
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+        left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+        bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+        right: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+      };
+    });
+  });
+
+  // ============================================
+  // GRAND TOTAL ROW
+  // ============================================
+  const totalRow = worksheet.addRow([
+    '',
+    '',
+    'GRAND TOTAL:',
+    summary.totalAmount,
+    summary.totalPaid,
+    '',
+    '',
+  ]);
+
+  totalRow.eachCell((cell) => {
+    cell.font = { bold: true, size: 12, color: { argb: 'FF0E5CA8' } };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFFF3CD' },
+    };
+  });
+  totalRow.getCell(4).numFmt = '"RWF "#,##0';
+  totalRow.getCell(5).numFmt = '"RWF "#,##0';
+
+  // ============================================
+  // COLUMN WIDTHS
+  // ============================================
+  worksheet.columns.forEach((column, idx) => {
+    const widths = [6, 25, 22, 18, 18, 14, 15];
+    column.width = widths[idx] || 15;
   });
 
   const fileName = `report-${Date.now()}.xlsx`;
   const filePath = path.join(__dirname, '../../uploads/reports/', fileName);
 
   const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   await workbook.xlsx.writeFile(filePath);
 

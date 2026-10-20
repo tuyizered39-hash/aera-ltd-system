@@ -8,7 +8,7 @@ import {
   FaWrench,
   FaPencilAlt,
   FaMusic,
-  FaFileAlt,      // ✅ Only ONE import
+  FaFileAlt,      
   FaUsers,
   FaCog,
   FaBell,
@@ -39,7 +39,7 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 bg-blue-900 shadow-lg min-h-[calc(100vh-72px)] sticky top-[72px] hidden md:block overflow-y-auto">
+    <aside className="w-64 flex-shrink-0 bg-blue-900 border-r border-blue-800 min-h-[calc(100vh-72px)] sticky top-[72px] hidden md:flex md:flex-col overflow-y-auto overflow-x-hidden">
       {/* User Profile Section */}
       <div className="p-4 border-b border-blue-800">
         <div className="flex items-center gap-3">
@@ -59,7 +59,7 @@ const Sidebar = () => {
 
       {/* Menu Items */}
       <div className="p-4">
-        <p className="text-blue-300 text-xs uppercase tracking-wider mb-3">
+        <p className="text-blue-300 text-xs uppercase tracking-wider mb-3 cursor-pointer">
           {t('common.menu')}
         </p>
 
@@ -70,8 +70,8 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'bg-blue-700 text-white shadow-lg'
-                  : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                  ? 'bg-yellow-400 text-blue-800 text-lg font-bold '
+                  : 'text-white hover:bg-blue-800 hover:text-blue-100'
               }`
             }
           >
@@ -89,8 +89,8 @@ const Sidebar = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                     isActive
-                      ? 'bg-blue-700 text-white shadow-lg'
-                      : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                      ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                      : 'text-white hover:bg-blue-700 hover:text-white'
                   }`
                 }
               >
@@ -106,8 +106,8 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'bg-blue-700 text-white shadow-lg'
-                  : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                  ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                  : 'text-white hover:bg-blue-700 hover:text-white'
               }`
             }
           >
@@ -122,8 +122,8 @@ const Sidebar = () => {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                   isActive
-                    ? 'bg-blue-700 text-white shadow-lg'
-                    : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                    ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                    : 'text-white hover:bg-blue-700 hover:text-white'
                 }`
               }
             >
@@ -138,8 +138,8 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'bg-blue-700 text-white shadow-lg'
-                  : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                  ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                  : 'text-white hover:bg-blue-700 hover:text-white'
               }`
             }
           >
@@ -153,8 +153,8 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'bg-blue-700 text-white shadow-lg'
-                  : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                  ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                  : 'text-white hover:bg-blue-700 hover:text-white'
               }`
             }
           >
@@ -171,8 +171,8 @@ const Sidebar = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                     isActive
-                      ? 'bg-blue-700 text-white shadow-lg'
-                      : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                      ? 'bg-yellow-400 text-blue-800 font-bold text-lg'
+                      : 'text-white hover:bg-blue-700 hover:text-white'
                   }`
                 }
               >
@@ -180,14 +180,14 @@ const Sidebar = () => {
                 <span className="text-sm">{t('common.workers')}</span>
               </NavLink>
 
-              {/* ✅ Admin Reports - Worker Reports */}
+              {/* Admin Reports - Worker Reports */}
               <NavLink
                 to="/admin/reports"
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                     isActive
-                      ? 'bg-blue-700 text-white shadow-lg'
-                      : 'text-blue-100 hover:bg-blue-800 hover:text-white'
+                      ? 'bg-yellow-400 text-blue-800 text-lg font-bold'
+                      : 'text-white hover:bg-blue-700 hover:text-white'
                   }`
                 }
               >

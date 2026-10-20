@@ -1,28 +1,24 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import './index.css';
-import SendReport from './pages/worker/SendReport';
-import AdminReports from './pages/admin/AdminReports';
+
 // Context
 import { LanguageProvider } from './context/LanguageContext';
-import LoadingRedirect from './pages/LoadingRedirect';
-// Components
-import Layout from './components/common/Layout';
+
+// Shell
+import Navbar from './components/common/Navbar';
+import Sidebar from './components/common/Sidebar';
+
+// Auth & Guards
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { Unauthorized } from './components/auth/Unauthorized';
+
+// Public Pages
+import LoadingRedirect from './pages/LoadingRedirect';
 import Login from './pages/auth/Login';
 import NotFound from './pages/NotFound';
-import WorkerSettings from './pages/worker/WorkerSettings';
-// ✅ ONLY ONE IMPORT for TestTranslation
-
-
-// Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import WorkerManagement from './pages/admin/WorkerManagement';
-import Settings from './pages/admin/Settings';
-import MonthlyReport from './pages/admin/MonthlyReport';
 
 // Worker Pages
 import WorkerDashboard from './pages/worker/WorkerDashboard';
@@ -31,7 +27,17 @@ import ServiceForm from './pages/worker/ServiceForm';
 import ServiceDetails from './pages/worker/ServiceDetails';
 import Reports from './pages/worker/Reports';
 import Notifications from './pages/worker/Notifications';
+import SendReport from './pages/worker/SendReport';
+import WorkerSettings from './pages/worker/WorkerSettings';
 
+// Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import WorkerManagement from './pages/admin/WorkerManagement';
+import Settings from './pages/admin/Settings';
+import MonthlyReport from './pages/admin/MonthlyReport';
+import AdminReports from './pages/admin/AdminReports';
+
+// ---------- React Query ----------
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -42,40 +48,58 @@ const queryClient = new QueryClient({
   },
 });
 
+// ============================================================
+// ProtectedLayout — the responsive app shell
+// Owns sidebar open/close state so Navbar & Sidebar stay in sync
+// ============================================================
+function ProtectedLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Top navbar — passes hamburger handler */}
+      <Navbar onMenuClick={() => setSidebarOpen(true)} />
+
+      <div className="flex flex-1 min-w-0">
+        {/* Off-canvas drawer on < lg, persistent on ≥ lg */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+
+        {/* Main content area */}
+        <main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 overflow-x-hidden">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// App
+// ============================================================
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <Router>
           <Routes>
-            {/* ✅ Test Route - Remove after testing */}
-        
-
-            {/* Public Routes */}
+            {/* ---------- Public Routes ---------- */}
             <Route path="/loading" element={<LoadingRedirect />} />
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-            {/* Protected Routes with Layout */}
+            {/* ---------- Protected Routes (wrapped in responsive shell) ---------- */}
             <Route
-              path="/"
               element={
                 <ProtectedRoute>
-                  <Layout />
+                  <ProtectedLayout />
                 </ProtectedRoute>
               }
             >
-              <Route
-  path="/admin/reports"
-  element={
-    <ProtectedRoute allowedRoles={['ADMIN']}>
-      <AdminReports />
-    </ProtectedRoute>
-  }
-/>
-              {/* Worker Routes */}
-
+              {/* ---- Worker Routes ---- */}
               <Route path="/dashboard" element={<WorkerDashboard />} />
               <Route path="/services/:type" element={<ServiceList />} />
               <Route path="/services/:type/new" element={<ServiceForm />} />
@@ -85,9 +109,8 @@ function App() {
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<WorkerSettings />} />
               <Route path="/send-report" element={<SendReport />} />
-              
 
-              {/* Admin Routes */}
+              {/* ---- Admin Routes ---- */}
               <Route
                 path="/admin"
                 element={
@@ -113,6 +136,14 @@ function App() {
                 }
               />
               <Route
+                path="/admin/reports"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <AdminReports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/reports/monthly"
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
@@ -122,18 +153,27 @@ function App() {
               />
             </Route>
 
-            {/* 404 */}
+            {/* ---------- 404 ---------- */}
             <Route path="*" element={<NotFound />} />
           </Routes>
 
+          {/* ---------- Toasts (mobile-friendly) ---------- */}
           <Toaster
-            position="top-right"
+            position="top-center"
+            containerStyle={{
+              top: 12,
+              left: 12,
+              right: 12,
+            }}
             toastOptions={{
               duration: 4000,
+              className: 'text-sm sm:text-base',
               style: {
                 background: '#363636',
                 color: '#fff',
                 borderRadius: '8px',
+                maxWidth: 'min(420px, calc(100vw - 24px))',
+                padding: '10px 14px',
               },
               success: {
                 duration: 3000,
@@ -141,7 +181,7 @@ function App() {
                   background: '#22c55e',
                   color: '#fff',
                 },
-                icon: '✅',
+                icon: '',
               },
               error: {
                 duration: 5000,
@@ -149,7 +189,7 @@ function App() {
                   background: '#ef4444',
                   color: '#fff',
                 },
-                icon: '❌',
+                icon: '',
               },
             }}
           />

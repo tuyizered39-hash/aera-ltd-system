@@ -38,7 +38,7 @@ const WorkerSettings = () => {
       
       // Set the profile picture URL
       if (user.profilePicture) {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const baseWithoutApi = baseUrl.replace('/api', '');
         setPreviewUrl(`${baseWithoutApi}${user.profilePicture}`);
       } else {
@@ -102,7 +102,7 @@ const WorkerSettings = () => {
       localStorage.setItem('aera_user', JSON.stringify(updatedUser));
       
       if (updatedUser.profilePicture) {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const baseWithoutApi = baseUrl.replace('/api', '');
         setPreviewUrl(`${baseWithoutApi}${updatedUser.profilePicture}`);
       }

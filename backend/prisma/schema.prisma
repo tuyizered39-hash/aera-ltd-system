@@ -50,8 +50,8 @@ model Service {
   clientName        String
   clientPhone       String?
   clientEmail       String?
-  location          String
-  district          String
+  location          String?
+  district          String?
   amount            Float
   amountPaid        Float?
   paymentStatus     PaymentStatus @default(UNPAID)
@@ -64,6 +64,11 @@ model Service {
   tentQuantity      Int?
   decorationItems   Json?
   
+  products          Json?
+  attachmentUrl     String?
+  attachmentName    String?
+  attachmentType    String?
+  attachmentSize    Int?
   createdById       String
   createdBy         User          @relation("CreatedServices", fields: [createdById], references: [id], onDelete: SetNull)
   

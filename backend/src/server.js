@@ -53,7 +53,7 @@ if (!process.env.VERCEL) {
   app.use('/api', limiter);
 }
 
-// ✅ CORS Configuration - Allow frontend URLs
+// CORS Configuration - Allow frontend URLs
 const corsOptions = {
   origin: [
     'https://aera-ltd-system.vercel.app',
@@ -115,18 +115,18 @@ app.use((req, res) => {
 });
 
 // ============================================
-// ✅ For Vercel: Export the app (NO app.listen())
+// For Vercel: Export the app (NO app.listen())
 // ============================================
 module.exports = app;
 
-// ✅ Only listen if NOT running on Vercel
+// Only listen if NOT running on Vercel
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   const server = app.listen(PORT, () => {
-    logger.info(`🚀 AERA LTD Server running on port ${PORT}`);
-    logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
-    logger.info(`🌐 API URL: http://localhost:${PORT}/api`);
-    logger.info(`❤️  Health: http://localhost:${PORT}/api/health`);
+    logger.info(` AERA LTD Server running on port ${PORT}`);
+    logger.info(` Environment: ${process.env.NODE_ENV}`);
+    logger.info(` API URL: http://localhost:${PORT}/api`);
+    logger.info(`  Health: http://localhost:${PORT}/api/health`);
   });
 
   const gracefulShutdown = async () => {

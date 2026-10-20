@@ -4,10 +4,11 @@ import { FaClipboardList, FaMoneyBillWave, FaUsers, FaClock, FaEye } from 'react
 import { useLanguage } from '../../context/LanguageContext';
 import { dashboardAPI, serviceAPI } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
+import useMinLoadingTime from '../../hooks/useMinLoadingTime';
 
 const WorkerDashboard = () => {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
+  const { loading, runWithMinTime } = useMinLoadingTime(2000);
   const [stats, setStats] = useState({
     todayServices: 0,
     monthlyIncome: 0,
@@ -19,21 +20,21 @@ const WorkerDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const statsRes = await dashboardAPI.getStats();
-      setStats(statsRes.data.data);
+    await runWithMinTime(async () => {
+      try {
+        const statsRes = await dashboardAPI.getStats();
+        setStats(statsRes.data.data);
 
-      const servicesRes = await serviceAPI.getServices({ limit: 5 });
-      setRecentServices(servicesRes.data.data || []);
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+        const servicesRes = await serviceAPI.getServices({ limit: 5 });
+        setRecentServices(servicesRes.data.data || []);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      }
+    });
   };
 
   if (loading) return <LoadingSpinner />;
@@ -48,7 +49,7 @@ const WorkerDashboard = () => {
     {
       icon: FaMoneyBillWave,
       label: t('dashboard.monthly_income'),
-      value: `RWF ${stats.monthlyIncome.toLocaleString()}`,
+      value: `RWF ${(stats.monthlyIncome || 0).toLocaleString()}`,
       color: 'bg-green-500',
     },
     {
@@ -135,18 +136,22 @@ const WorkerDashboard = () => {
                   <tr key={service.id} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-3 text-sm font-medium">{service.clientName}</td>
                     <td className="py-3 text-sm">
-                      {t(`services.${service.serviceType.toLowerCase()}`)}
+                      {t(`services.${(service.serviceType || '').toLowerCase()}`)}
                     </td>
-                    <td className="py-3 text-sm">RWF {service.amount.toLocaleString()}</td>
+                    <td className="py-3 text-sm">
+                      RWF {(service.amount || 0).toLocaleString()}
+                    </td>
                     <td className="py-3">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(service.paymentStatus)}`}>
-                        {t(`common.${service.paymentStatus.toLowerCase()}`)}
+                        {t(`common.${(service.paymentStatus || 'unpaid').toLowerCase()}`)}
                       </span>
                     </td>
-                    <td className="py-3 text-sm">{new Date(service.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 text-sm">
+                      {service.createdAt ? new Date(service.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
                     <td className="py-3">
                       <Link
-                        to={`/services/${service.serviceType.toLowerCase()}/${service.id}`}
+                        to={`/services/${(service.serviceType || '').toLowerCase()}/${service.id}`}
                         className="text-blue-600 hover:text-blue-800 transition-colors"
                       >
                         <FaEye size={16} />

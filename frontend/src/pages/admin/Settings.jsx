@@ -38,9 +38,7 @@ const Settings = () => {
       
       // ✅ Set the profile picture URL
       if (user.profilePicture) {
-        // ✅ Use the full URL with the backend base URL
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        // Remove /api from the base URL if present
+        const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const baseWithoutApi = baseUrl.replace('/api', '');
         setPreviewUrl(`${baseWithoutApi}${user.profilePicture}`);
       } else {
@@ -109,7 +107,7 @@ const Settings = () => {
       
       // ✅ Update preview URL
       if (updatedUser.profilePicture) {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const baseWithoutApi = baseUrl.replace('/api', '');
         setPreviewUrl(`${baseWithoutApi}${updatedUser.profilePicture}`);
       }

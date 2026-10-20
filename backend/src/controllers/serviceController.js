@@ -1,18 +1,58 @@
+const fs = require('fs');
+const path = require('path');
+const { generateServiceDOCX, generateServicePDF } = require('../utils/documentGenerator');
+
 const prisma = require('../config/database')();
 const { AppError } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
 const dayjs = require('dayjs');
 
 const serviceController = {
-  // Create service
+  // ============================================
+  // CREATE SERVICE
+  // ============================================
   async createService(req, res, next) {
     try {
+      console.log('Create service request:', req.body);
+
       const data = {
         ...req.body,
         createdById: req.user.id,
         startDate: new Date(req.body.startDate),
         endDate: req.body.endDate ? new Date(req.body.endDate) : null,
       };
+
+      //  Parse products from JSON string (FormData sends as string)
+      if (data.products) {
+        try {
+          data.products = typeof data.products === 'string'
+            ? JSON.parse(data.products)
+            : data.products;
+        } catch (e) {
+          console.warn(' Failed to parse products:', e.message);
+          data.products = [];
+        }
+      }
+
+      //  Attach file info if uploaded
+      if (req.file) {
+        data.attachmentUrl = `/uploads/services/${req.file.filename}`;
+        data.attachmentName = req.file.originalname;
+        data.attachmentType = req.file.mimetype;
+        data.attachmentSize = req.file.size;
+      }
+
+      //  Convert numeric fields
+      if (data.amount) data.amount = parseFloat(data.amount);
+      if (data.amountPaid) data.amountPaid = parseFloat(data.amountPaid);
+      if (data.tentQuantity) data.tentQuantity = parseInt(data.tentQuantity);
+
+      //  Clean empty strings
+      Object.keys(data).forEach(key => {
+        if (data[key] === '' || data[key] === 'null' || data[key] === 'undefined') {
+          data[key] = null;
+        }
+      });
 
       // Validate dates
       if (isNaN(data.startDate.getTime())) {
@@ -43,12 +83,14 @@ const serviceController = {
         data: service,
       });
     } catch (error) {
-      console.error('❌ Create service error:', error);
+      console.error(' Create service error:', error);
       next(error);
     }
   },
 
-  // Get services with filters
+  // ============================================
+  // GET SERVICES (with filters)
+  // ============================================
   async getServices(req, res, next) {
     try {
       const {
@@ -70,8 +112,7 @@ const serviceController = {
       if (paymentStatus) where.paymentStatus = paymentStatus;
       if (clientName) where.clientName = { contains: clientName, mode: 'insensitive' };
       if (district) where.district = { contains: district, mode: 'insensitive' };
-      
-      // ✅ Handle date filters properly
+
       if (startDate) {
         const start = new Date(startDate);
         if (!isNaN(start.getTime())) {
@@ -92,11 +133,7 @@ const serviceController = {
           where,
           include: {
             createdBy: {
-              select: {
-                id: true,
-                fullName: true,
-                username: true,
-              },
+              select: { id: true, fullName: true, username: true },
             },
             deliveries: true,
             payments: true,
@@ -124,7 +161,9 @@ const serviceController = {
     }
   },
 
-  // Get service by ID
+  // ============================================
+  // GET SERVICE BY ID
+  // ============================================
   async getServiceById(req, res, next) {
     try {
       const { id } = req.params;
@@ -133,11 +172,7 @@ const serviceController = {
         where: { id },
         include: {
           createdBy: {
-            select: {
-              id: true,
-              fullName: true,
-              username: true,
-            },
+            select: { id: true, fullName: true, username: true },
           },
           deliveries: true,
           payments: true,
@@ -153,29 +188,28 @@ const serviceController = {
         data: service,
       });
     } catch (error) {
-      console.error(' Get service by ID error:', error);
+      console.error('Get service by ID error:', error);
       next(error);
     }
   },
 
-  // ✅ FIXED: Update service with date conversion
+  // ============================================
+  // UPDATE SERVICE
+  // ============================================
   async updateService(req, res, next) {
     try {
       const { id } = req.params;
       const data = req.body;
 
-      console.log('🔍 Updating service:', { id, data });
+      console.log(' Updating service:', { id, data });
 
-      // Check if service exists
-      const service = await prisma.service.findUnique({
-        where: { id },
-      });
+      const service = await prisma.service.findUnique({ where: { id } });
 
       if (!service) {
         throw new AppError('Service not found', 404);
       }
 
-      // ✅ Convert date strings to Date objects
+      //  Convert dates
       if (data.startDate) {
         data.startDate = new Date(data.startDate);
         if (isNaN(data.startDate.getTime())) {
@@ -190,7 +224,27 @@ const serviceController = {
         }
       }
 
-      // ✅ Remove fields that shouldn't be updated
+      //  Parse products from JSON string
+      if (data.products) {
+        try {
+          data.products = typeof data.products === 'string'
+            ? JSON.parse(data.products)
+            : data.products;
+        } catch (e) {
+          console.warn(' Failed to parse products:', e.message);
+          data.products = [];
+        }
+      }
+
+      // Attach new file if uploaded
+      if (req.file) {
+        data.attachmentUrl = `/uploads/services/${req.file.filename}`;
+        data.attachmentName = req.file.originalname;
+        data.attachmentType = req.file.mimetype;
+        data.attachmentSize = req.file.size;
+      }
+
+      // Remove fields that shouldn't be updated
       delete data.id;
       delete data.createdAt;
       delete data.updatedAt;
@@ -198,7 +252,7 @@ const serviceController = {
       delete data.deliveries;
       delete data.payments;
 
-      // ✅ Ensure numeric fields are numbers
+      // Ensure numeric fields
       if (data.amount) data.amount = parseFloat(data.amount);
       if (data.amountPaid !== undefined && data.amountPaid !== null) {
         data.amountPaid = parseFloat(data.amountPaid);
@@ -207,9 +261,9 @@ const serviceController = {
         data.tentQuantity = parseInt(data.tentQuantity);
       }
 
-      // ✅ Clean up empty strings
+      //  Clean up empty strings
       Object.keys(data).forEach(key => {
-        if (data[key] === '') {
+        if (data[key] === '' || data[key] === 'null' || data[key] === 'undefined') {
           data[key] = null;
         }
       });
@@ -232,22 +286,20 @@ const serviceController = {
     }
   },
 
-  // Delete service
+  // ============================================
+  // DELETE SERVICE
+  // ============================================
   async deleteService(req, res, next) {
     try {
       const { id } = req.params;
 
-      const service = await prisma.service.findUnique({
-        where: { id },
-      });
+      const service = await prisma.service.findUnique({ where: { id } });
 
       if (!service) {
         throw new AppError('Service not found', 404);
       }
 
-      await prisma.service.delete({
-        where: { id },
-      });
+      await prisma.service.delete({ where: { id } });
 
       logger.info(`Service ${id} deleted by ${req.user.username}`);
 
@@ -261,7 +313,9 @@ const serviceController = {
     }
   },
 
-  // Get dashboard stats
+  // ============================================
+  // GET DASHBOARD STATS
+  // ============================================
   async getDashboardStats(req, res, next) {
     try {
       const today = dayjs().startOf('day').toDate();
@@ -270,38 +324,22 @@ const serviceController = {
 
       const [todayServices, monthlyIncome, activeClients, pendingTasks] = await Promise.all([
         prisma.service.count({
-          where: {
-            createdAt: {
-              gte: today,
-              lte: tomorrow,
-            },
-          },
+          where: { createdAt: { gte: today, lte: tomorrow } },
         }),
         prisma.service.aggregate({
           where: {
-            createdAt: {
-              gte: startOfMonth,
-            },
+            createdAt: { gte: startOfMonth },
             paymentStatus: 'PAID',
           },
-          _sum: {
-            amount: true,
-          },
+          _sum: { amount: true },
         }),
         prisma.service.groupBy({
           by: ['clientName'],
-          where: {
-            status: 'ONGOING',
-          },
-          _count: {
-            clientName: true,
-          },
+          where: { status: 'ONGOING' },
+          _count: { clientName: true },
         }),
         prisma.service.count({
-          where: {
-            status: 'ONGOING',
-            paymentStatus: 'UNPAID',
-          },
+          where: { status: 'ONGOING', paymentStatus: 'UNPAID' },
         }),
       ]);
 
@@ -316,6 +354,66 @@ const serviceController = {
       });
     } catch (error) {
       console.error(' Get dashboard stats error:', error);
+      next(error);
+    }
+  },
+
+  // ============================================
+  //  NEW: EXPORT SERVICE AS DOCX
+  // ============================================
+  async exportServiceDOCX(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const service = await prisma.service.findUnique({ where: { id } });
+      if (!service) throw new AppError('Service not found', 404);
+
+      const uploadDir = path.join(__dirname, '../../uploads/exports');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+      const fileName = `service-${service.id}-${Date.now()}.docx`;
+      const filePath = path.join(uploadDir, fileName);
+
+      await generateServiceDOCX(service, filePath);
+
+      logger.info(`DOCX generated for service ${id} by ${req.user.username}`);
+
+      res.download(filePath, `AERA-Service-${service.clientName}.docx`, (err) => {
+        if (err) console.error('Download error:', err);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      });
+    } catch (error) {
+      console.error(' DOCX export error:', error);
+      next(error);
+    }
+  },
+
+  // ============================================
+  //  NEW: EXPORT SERVICE AS PDF
+  // ============================================
+  async exportServicePDF(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const service = await prisma.service.findUnique({ where: { id } });
+      if (!service) throw new AppError('Service not found', 404);
+
+      const uploadDir = path.join(__dirname, '../../uploads/exports');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+      const fileName = `service-${service.id}-${Date.now()}.pdf`;
+      const filePath = path.join(uploadDir, fileName);
+
+      await generateServicePDF(service, filePath);
+
+      logger.info(`PDF generated for service ${id} by ${req.user.username}`);
+
+      res.download(filePath, `AERA-Service-${service.clientName}.pdf`, (err) => {
+        if (err) console.error('Download error:', err);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      });
+    } catch (error) {
+      console.error(' PDF export error:', error);
       next(error);
     }
   },

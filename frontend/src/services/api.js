@@ -1,7 +1,7 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 
 const api = axios.create({
@@ -100,12 +100,37 @@ export const userAPI = {
 export const serviceAPI = {
   getServices: (params) => api.get('/services', { params }),
   getServiceById: (id) => api.get(`/services/${id}`),
-  createService: (data) => api.post('/services', data),
-  updateService: (id, data) => api.patch(`/services/${id}`, data),
+
+  // ✅ Support file uploads + products (uses FormData)
+  createService: (data) => {
+    if (data instanceof FormData) {
+      return api.post('/services', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.post('/services', data);
+  },
+
+  updateService: (id, data) => {
+    if (data instanceof FormData) {
+      return api.patch(`/services/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.patch(`/services/${id}`, data);
+  },
+
   deleteService: (id) => api.delete(`/services/${id}`),
   getDashboardStats: () => api.get('/services/dashboard/stats'),
-};
 
+  // ✅ Export service as DOCX
+  exportServiceDOCX: (id) =>
+    api.get(`/services/${id}/export/docx`, { responseType: 'blob' }),
+
+  // ✅ Export service as PDF
+  exportServicePDF: (id) =>
+    api.get(`/services/${id}/export/pdf`, { responseType: 'blob' }),
+};
 
 // ============================================
 // REPORT API - ✅ COMBINED (NO DUPLICATE)

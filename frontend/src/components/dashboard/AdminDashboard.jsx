@@ -1,32 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaClipboardList, FaMoneyBillWave, FaClock, FaEye } from 'react-icons/fa';
+import { FaUsers, FaClipboardList, FaMoneyBillWave, FaClock } from 'react-icons/fa';
 import { useLanguage } from '../../context/LanguageContext';
 import { dashboardAPI } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
+import useMinLoadingTime from '../../hooks/useMinLoadingTime';
 
 const AdminDashboard = () => {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
+  const { loading, runWithMinTime } = useMinLoadingTime(2000);
   const [overview, setOverview] = useState(null);
 
   useEffect(() => {
     fetchOverview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchOverview = async () => {
-    try {
-      setLoading(true);
-      const response = await dashboardAPI.getAdminOverview();
-      setOverview(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch admin overview:', error);
-    } finally {
-      setLoading(false);
-    }
+    await runWithMinTime(async () => {
+      try {
+        const response = await dashboardAPI.getAdminOverview();
+        setOverview(response.data.data);
+      } catch (error) {
+        console.error('Failed to fetch admin overview:', error);
+      }
+    });
   };
-
-  if (loading) return <LoadingSpinner />;
 
   const stats = [
     {
@@ -62,6 +61,8 @@ const AdminDashboard = () => {
       color: 'bg-red-500',
     },
   ];
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div>

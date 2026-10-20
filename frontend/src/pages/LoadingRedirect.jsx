@@ -3,10 +3,8 @@ import React, { useEffect } from 'react';
 
 const LoadingRedirect = () => {
   useEffect(() => {
-    // ✅ Redirect to the system login page after 3 seconds
-    const redirectUrl = 'http://localhost:5173/login';
     const redirectTimer = setTimeout(() => {
-      window.location.href = 'https://aera-ltd-system.vercel.app/login';
+      window.location.href = `${window.location.origin}/login`;
     }, 3000);
 
     return () => clearTimeout(redirectTimer);

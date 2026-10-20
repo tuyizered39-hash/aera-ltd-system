@@ -29,7 +29,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-blue-900 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+    <nav className="bg-blue-900 text-white px-4 py-3 shadow-lg sticky top-0 z-50 cursor-pointer">
       <div className="flex items-center justify-between">
         {/* Left - Logo */}
         <div className="flex items-center gap-3">
@@ -39,22 +39,20 @@ const Navbar = () => {
           >
             <FaBars />
           </button>
-          <Link to="/dashboard" className="text-2xl font-bold">
-            AERA <span className="text-yellow-400">LTD</span>
+          <Link to="/dashboard" className=" left-100 text-2xl font-bold">
+            AERA<span className="text-yellow-400">LTD</span>
           </Link>
-          <span className="text-sm text-blue-300 hidden md:inline">
-            | {t('common.dashboard')}
-          </span>
+          
         </div>
 
         {/* Right - Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 cursor-pointer">
           {/* ✅ Language Switcher - Globe Icon */}
           <LanguageSwitcher />
 
           {/* Notifications */}
           <button
-            className="relative hover:text-yellow-400 transition-colors"
+            className="relative hover:text-yellow-400 transition-colors cursor-pointer"
             onClick={() => navigate('/notifications')}
           >
             <FaBell size={20} />
@@ -70,7 +68,7 @@ const Navbar = () => {
             <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-blue-900 font-bold">
               {user?.fullName?.charAt(0) || 'U'}
             </div>
-            <span className="hidden md:inline text-sm">{user?.fullName}</span>
+            
           </div>
 
           
