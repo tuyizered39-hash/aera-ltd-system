@@ -1,6 +1,7 @@
-const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } = require('docx');
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ImageRun } = require('docx');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const path = require('path'); // ✅ Added for safe path joining
 
 // Calculate total from products
 function calculateTotal(products) {
@@ -45,10 +46,27 @@ async function generateServiceDOCX(service, filePath) {
     );
   });
 
+  // ✅ Check if logo exists for DOCX
+  const logoPath = path.join(__dirname, '../logo.png');
+  const hasLogo = fs.existsSync(logoPath);
+
   const doc = new Document({
     sections: [{
       children: [
-        // ✅ Header — AERA LTD in blue, LTD in yellow
+        // ✅ Insert Logo Image
+        ...(hasLogo ? [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new ImageRun({
+                data: fs.readFileSync(logoPath),
+                transformation: { width: 100, height: 100 }, // Adjust size as needed
+              }),
+            ],
+          })
+        ] : []),
+
+        // Header — AERA LTD in blue, LTD in yellow
         new Paragraph({
           alignment: AlignmentType.CENTER,
           children: [
@@ -64,9 +82,16 @@ async function generateServiceDOCX(service, filePath) {
           alignment: AlignmentType.CENTER,
           children: [new TextRun({ text: 'Gakenke District, Northern Province, Rwanda', size: 20, italics: true })],
         }),
+        // ✅ Added Company Info
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new TextRun({ text: 'TIN: 102655294 | B.P: 2550 KIGALI/RWANDA | TEL: 0788669674 / 0728669674', size: 18, bold: true })
+          ],
+        }),
         new Paragraph({ text: '' }),
 
-        // ✅ Client block — Name and Date only
+        // Client block — Name and Date only
         new Paragraph({
           children: [
             new TextRun({ text: 'Client: ', bold: true }),
@@ -120,16 +145,24 @@ async function generateServicePDF(service, filePath) {
     // ============================================
     // HEADER BANNER (blue background)
     // ============================================
-    doc.rect(0, 0, doc.page.width, 110).fill('#0E5CA8');
+    doc.rect(0, 0, doc.page.width, 120).fill('#0E5CA8'); // Increased height for extra info
 
-    // AERA LTD logo — white & yellow on blue banner
-    doc.font('Helvetica-Bold').fontSize(30).fillColor('#FFFFFF')
-      .text('AERA', 40, 30, { continued: true });
-    doc.fillColor('#F5B400').text(' LTD');
+    // ✅ Add Logo to PDF
+    const logoPath = path.join(__dirname, '../logo.png');
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 40, 20, { width: 80 });
+    } else {
+      // Fallback text if image is missing
+      doc.font('Helvetica-Bold').fontSize(30).fillColor('#FFFFFF')
+        .text('AERA', 40, 30, { continued: true });
+      doc.fillColor('#F5B400').text(' LTD');
+    }
 
-    // Tagline
-    doc.font('Helvetica').fontSize(10).fillColor('#CCE0FF')
-      .text('Gakenke District, Northern Province, Rwanda', 40, 70);
+    // ✅ Company Info
+    doc.font('Helvetica').fontSize(9).fillColor('#CCE0FF')
+      .text('Gakenke District, Northern Province, Rwanda', 40, 65);
+    doc.text('TIN: 102655294 • B.P: 2550 KIGALI/RWANDA', 40, 78);
+    doc.text('TEL: 0788669674 / 0728669674', 40, 91);
 
     // Invoice label on the right
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#CCE0FF')
@@ -140,7 +173,7 @@ async function generateServicePDF(service, filePath) {
     // ============================================
     // CLIENT BLOCK
     // ============================================
-    let y = 140;
+    let y = 150; // Adjusted slightly down to account for taller header
 
     doc.font('Helvetica-Bold').fontSize(12).fillColor('#0E5CA8')
       .text('BILLED TO', 40, y);
